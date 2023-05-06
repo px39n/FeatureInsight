@@ -2,12 +2,12 @@ import os
 import sys
 from setuptools import setup, find_packages
 
-NAME = "package_name"
-AUTHOR = "your user name"
-EMAIL = "your email"
-URL = "your project url"
-LICENSE = "your license"
-DESCRIPTION = "your project description"
+NAME = "FeatureInsight"
+AUTHOR = "px39n"
+EMAIL = "isxzl39@gmail.com"
+URL = "https://github.com/px39n/FeatureInsight"
+LICENSE = "MIT License"
+DESCRIPTION = "project description"
 
 if sys.version_info < (3, 6, 0):
     raise RuntimeError(f"{NAME} requires Python >=3.6.0, but yours is {sys.version}!")
