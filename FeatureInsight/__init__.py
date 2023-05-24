@@ -1,4 +1,4 @@
-__version__ = "0.0.4"
+__version__ = "0.0.8"
 from sklearn.pipeline import Pipeline
 import pandas as pd 
 import numpy as np

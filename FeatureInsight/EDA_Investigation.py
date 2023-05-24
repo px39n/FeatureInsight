@@ -1,66 +1,146 @@
+from sklearn.pipeline import Pipeline
+import pandas as pd 
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import math
+import os
+from PIL import Image
+import cv2
+from tqdm import tqdm
+from tabulate import tabulate
+from feature_engine.encoding import *
+import klib
 
-def univar_dis(train_df,collist):
- """plot distribution for a fea list in df.
- Detailed explanation 
- Args:  
-     df: train in dataframe
-     collist: ['fea1','fea2']
-     flag: 
- Returns:
-   nothing
-     
- """      
- import klib
- from feature_engine.encoding import CountFrequencyEncoder,OrdinalEncoder
- from feature_engine.discretisation import EqualWidthDiscretiser
- from feature_engine.imputation import DropMissingData
- df=train_df
- num_list = df[collist].select_dtypes([np.number]).columns.tolist()
- cat_list= [x for x in collist if x not in num_list]
- klib.dist_plot(df[num_list]) 
- r_n=math.ceil(len(cat_list)/3)
- if r_n>0:
-   fig, ax =plt.subplots(figsize = (18, 6*r_n), nrows = r_n, ncols = 3)
-   ax=ax.reshape(-1)
-   #plot data
-
-   imputer = DropMissingData(variables=cat_list)
-   df=imputer.fit_transform(df)
-   encoder = CountFrequencyEncoder(variables=cat_list)
-   df1=encoder.fit_transform(df)
-   for i in range(0,len(cat_list)):
-       encoder = OrdinalEncoder(variables=cat_list[i])
-       df=encoder.fit_transform(df,df1[cat_list[i]])
-       encoder = EqualWidthDiscretiser(bins=20,variables=cat_list[i])
-       df=encoder.fit_transform(df)
-       sns.countplot(x=cat_list[i], data=df,ax=ax[i])
-       ax[i].axvline(x = df[cat_list[i]].quantile(.1), color = 'r', label = '10%')
-       ax[i].axvline(x = df[cat_list[i]].quantile(.9), color = 'r', label = '90%')
-       ax[i].legend() 
-       ax[i].set_title(cat_list[i]+"("+str(train_df[cat_list[i]].nunique())+")")
-   plt.show()
-
-
-
-
-def bivar_dis(df,fea_list):
-    """plot bivar_dis for a fea list in df.
-    Detailed explanation 
-    Args:  
+def bivar_dis(df, fea_list, mode='Line'):
+    """
+    Plot bivar_dis for a feature list in df.
+    Detailed explanation
+    Args:
         df: train in dataframe
-        fea_list: [['fea1','fea2'],['fea1','fea2'],['fea1','fea2']]
-        
+        fea_list: [['fea1', 'fea2'], ['fea1', 'fea2'], ['fea1', 'fea2']]
     Returns:
-       nothing
+        nothing
+    """
+    ncols = 3
+    nrows = (len(fea_list) + ncols - 1) // ncols
+    fig, axs = plt.subplots(nrows, ncols, figsize=(15, nrows * 5), constrained_layout=True)
+    axs = axs.reshape(nrows, -1)  # Ensure axs is always 2-dimensional
+
+    for idx, (fea1, fea2) in enumerate(fea_list):
+        row, col_idx = divmod(idx, ncols)
+
+        if pd.api.types.is_numeric_dtype(df[fea1]):
+            if mode == 'Bar':
+                sns.histplot(data=df, x=fea1, hue=fea2, multiple="dodge", shrink=.8, ax=axs[row, col_idx])
+            elif mode == 'Line':
+                sns.kdeplot(data=df, x=fea1, hue=fea2, ax=axs[row, col_idx])
+
+        elif pd.api.types.is_string_dtype(df[fea1]):
+            if mode == 'Bar':
+                sns.histplot(data=df, x=fea1, hue=fea2, multiple="dodge", shrink=.8, ax=axs[row, col_idx])
+            elif mode == 'Line':
+                sns.histplot(data=df, x=fea1, hue=fea2, element="poly", ax=axs[row, col_idx])
+        else:
+            print(f"Unsupported feature types: {fea1}, {fea2}")
+            continue
+
+        axs[row, col_idx].set_title(f"{fea1} vs {fea2}")
+
+    # Remove unused subplots
+    for idx in range(len(fea_list), nrows * ncols):
+        row, col_idx = divmod(idx, ncols)
+        fig.delaxes(axs[row, col_idx])
+
+    plt.show()
+
+    
+    
+
+def univar_dis(train_df, collist, mode='bar'):
+    """
+    Plot distribution for a feature list in df.
+    Detailed explanation
+    Args:
+        train_df: train dataset in dataframe
+        collist: ['fea1','fea2' etc,.]
+    Returns:
+        nothing
+    """
+    num_list, cata_list, other_list = generate_lists(train_df, collist)
+    
+    # Plot the distribution for numerical features
+    klib.dist_plot(train_df[num_list])
+
+    # Plot the distribution for categorical features
+    if cata_list!=[]:
+        if mode == 'bar':
+            plot_categorical_distribution(train_df, cata_list)
+        elif mode == 'pie':
+            plot_categorical_pie_charts(train_df, cata_list)
+
+    # Print the other features
+    print("Other features: ", other_list)
+
+def generate_lists(df, collist):
+    num_list = []
+    cata_list = []
+    other_list = []
+
+    for col in collist:
+        if df[col].nunique() > 10 and pd.api.types.is_numeric_dtype(df[col]):
+            num_list.append(col)
+        elif df[col].nunique() <= 10 and (pd.api.types.is_numeric_dtype(df[col]) or pd.api.types.is_string_dtype(df[col])):
+            cata_list.append(col)
+        else:
+            other_list.append(col)
+    return num_list, cata_list, other_list
+
+
+
+def plot_categorical_distribution(df, cata_list):
+    ncols = 3
+    nrows = (len(cata_list) + ncols - 1) // ncols
+    fig, axs = plt.subplots(nrows, ncols, figsize=(15, nrows * 5), constrained_layout=True)
+
+    # Adjust for 1D and 2D axs array.
+    if nrows == 1:
+        axs = axs[np.newaxis, :]
+    elif ncols == 1:
+        axs = axs[:, np.newaxis]
         
-    """   
-    #build figure, set size
-    r_n=math.ceil(len(fea_list)/3)
-    fig, ax =plt.subplots(figsize = (18, 6*r_n), nrows = r_n, ncols = 3)
-    ax=ax.reshape(-1)
-    for i,coup in enumerate(fea_list):
-        
-        #plot data
-        sns.histplot(x=coup[0],hue=coup[1], data=df,ax=ax[i])
-        ax[i].set_title(coup[0]+" vs "+coup[1])
+    for idx, col in enumerate(cata_list):
+        row, col_idx = divmod(idx, ncols)
+        sns.countplot(x=col, data=df, ax=axs[row, col_idx])
+        axs[row, col_idx].set_title(f"{col} Distribution")
+
+    # Remove unused subplots
+    for idx in range(len(cata_list), nrows * ncols):
+        row, col_idx = divmod(idx, ncols)
+        fig.delaxes(axs[row, col_idx])
+
+    plt.show()
+    
+def plot_categorical_pie_charts(df, cata_list):
+    ncols = 3
+    nrows = (len(cata_list) + ncols - 1) // ncols
+    fig, axs = plt.subplots(nrows, ncols, figsize=(15, nrows * 5), constrained_layout=True)
+
+    # Adjust for 1D and 2D axs array.
+    if nrows == 1:
+        axs = axs[np.newaxis, :]
+    elif ncols == 1:
+        axs = axs[:, np.newaxis]
+
+    for idx, col in enumerate(cata_list):
+        row, col_idx = divmod(idx, ncols)
+        df[col].value_counts().plot.pie(autopct='%1.1f%%', ax=axs[row, col_idx]) #e
+        axs[row, col_idx].set_ylabel('')
+        axs[row, col_idx].set_title(f"{col} Distribution")
+
+    # Remove unused subplots
+    for idx in range(len(cata_list), nrows * ncols):
+        row, col_idx = divmod(idx, ncols)
+        fig.delaxes(axs[row, col_idx])
+
     plt.show()

@@ -10,3 +10,4 @@ opencv-python
 tqdm
 tabulate
 feature-engine>=1.1.0
+klib
