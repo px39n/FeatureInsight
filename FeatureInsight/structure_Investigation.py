@@ -11,6 +11,34 @@ from tqdm import tqdm
 from tabulate import tabulate
 from feature_engine.encoding import *
 
+ 
+from tabulate import tabulate
+import pandas as pd
+ 
+ 
+import re
+
+class PrintableDataFrame(pd.DataFrame):
+
+    def print(self):
+        print(tabulate(self, headers='keys', tablefmt='psql'))
+
+    def sort(self, col):
+        sorted_df = self.copy()  # Make a copy of the DataFrame
+
+        # Extract the number from the unique count string and create a separate column for sorting
+        sorted_df['sort_column'] = sorted_df[col].apply(lambda x: int(re.findall(r'\d+', x)[0]) if re.findall(r'\d+', x) else None)
+
+        # Sort the DataFrame based on the extracted number in descending order
+        sorted_df = sorted_df.sort_values(by='sort_column', ascending=False)
+
+        # Remove the temporary sort column
+        sorted_df = sorted_df.drop(columns='sort_column')
+
+        sorted_printable_df = PrintableDataFrame(sorted_df)
+        sorted_printable_df.print()
+
+
 def struct_Investigation(df): 
    """plot Overview Information about datatype, variable type, shape, examples
    Detailed explanation 
@@ -31,7 +59,7 @@ def struct_Investigation(df):
    info=info.set_index('variable')
 
    # info.i=df.dtype
-   for fea in list(df.columns):
+   for fea in tqdm(list(df.columns)):
        info.loc[fea,"Null Count"]=str(df[fea].isnull().sum())+"("+str(df[fea].isnull().sum()/df[fea].shape[0]*100)+"%)"
        info.loc[fea,"dtype"]=str(df[fea].dtypes)         
        if str(df[fea].dtypes)=='object':
@@ -66,6 +94,6 @@ def struct_Investigation(df):
 
        #info.i=df.cardinality
        info.loc[fea,"Unique Count"]= str(df[fea].nunique())+ "({p:.2f}%) of total".format(p=df[fea].nunique()/df[fea].count()*100)
-   print(tabulate(info, headers='keys', tablefmt='psql'))
-   return info
+        
+   return PrintableDataFrame(info)
    
